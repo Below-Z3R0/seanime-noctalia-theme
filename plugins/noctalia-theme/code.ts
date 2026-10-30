@@ -251,17 +251,19 @@ function init() {
         const status = ctx.state("Waiting for the palette file…")
         const pathRef = ctx.fieldRef<string>(DEFAULT_PATH)
 
+        function report(message: string) {
+            status.set(message)
+            $storage.set("noctaliaTheme.status", message)
+        }
+
+        report("Plugin loaded")
+
         let lastSignature = ""
         let lastCss = ""
         let lastMode = ""
         let polling = false
         let clientFailures = 0
         let clientRetryAt = 0
-
-        function report(message: string) {
-            status.set(message)
-            $storage.set("noctaliaTheme.status", message)
-        }
 
         const tray = createTray(ctx)
 
