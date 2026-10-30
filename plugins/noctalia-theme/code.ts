@@ -263,7 +263,39 @@ function init() {
             $storage.set("noctaliaTheme.status", message)
         }
 
-        const tray = ctx.newTray({ iconUrl: ICON_URL, withContent: true, width: "380px" })
+        const tray = createTray(ctx)
+
+        function createTray(ctx: any): any {
+            try {
+                const created = ctx.newTray({ iconUrl: ICON_URL, withContent: true, width: "380px" })
+                created.render(() =>
+                    created.div([
+                        created.stack(
+                            [
+                                created.text("Noctalia Theme", { style: { fontWeight: "600", fontSize: "14px" } }),
+                                created.text(
+                                    "Applies the palette written by the Noctalia Seanime template, including Seanime's own brand and grey scales.",
+                                    { style: { color: "#888", fontSize: "12px" } },
+                                ),
+                                created.input({
+                                    label: "Palette file",
+                                    placeholder: DEFAULT_PATH,
+                                    fieldRef: pathRef,
+                                    style: { fontSize: "12px" },
+                                }),
+                                created.text(status.get(), { style: { color: "#666", fontSize: "11px" } }),
+                            ],
+                            { gap: 1 },
+                        ),
+                    ]),
+                )
+                return created
+            } catch (error) {
+                // The tray is a desktop affordance; the theme still applies without it.
+                console.warn("Noctalia Theme: tray unavailable", error)
+                return null
+            }
+        }
 
         function resolvePath(path: string): string {
             if (path.startsWith("~/")) {
@@ -387,32 +419,6 @@ function init() {
             lastSignature = ""
             clientFailures = 0
             clientRetryAt = 0
-        })
-
-        tray.render(() =>
-            tray.div([
-                tray.stack(
-                    [
-                        tray.text("Noctalia Theme", { style: { fontWeight: "600", fontSize: "14px" } }),
-                        tray.text(
-                            "Applies the palette written by the Noctalia Seanime template, including Seanime's own brand and grey scales.",
-                            { style: { color: "#888", fontSize: "12px" } },
-                        ),
-                        tray.input({
-                            label: "Palette file",
-                            placeholder: DEFAULT_PATH,
-                            fieldRef: pathRef,
-                            style: { fontSize: "12px" },
-                        }),
-                        tray.text(status.get(), { style: { color: "#666", fontSize: "11px" } }),
-                    ],
-                    { gap: 1 },
-                ),
-            ]),
-        )
-
-        ctx.dom.onReady(() => {
-            void poll()
         })
 
         ctx.setInterval(() => {
