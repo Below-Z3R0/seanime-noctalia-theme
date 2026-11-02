@@ -206,11 +206,13 @@ function buildCss(tokens: Record<string, string>): string {
         if (scale[5]) declarations.push(`  --color-brand-default: ${scale[5]} !important;`)
     }
 
-    const surfaceToken = oklchOf(role("surface") || "")
-    const onSurfaceToken = oklchOf(role("on_surface") || "")
+    const surfaceHex = role("surface")
+    const surfaceRgb = surfaceHex ? parseHex(surfaceHex) : null
+    const onSurfaceHex = role("on_surface")
+    const onSurfaceRgb = onSurfaceHex ? parseHex(onSurfaceHex) : null
     // Without both ends there is nothing to stretch between: keep the reference ramp.
-    const textL = onSurfaceToken ? onSurfaceToken[0] : GREY_L[0]
-    const surfaceL = surfaceToken ? surfaceToken[0] : GREY_L[GREY_L.length - 1]
+    const textL = onSurfaceRgb ? rgbToOklch(onSurfaceRgb[0], onSurfaceRgb[1], onSurfaceRgb[2])[0] : GREY_L[0]
+    const surfaceL = surfaceRgb ? rgbToOklch(surfaceRgb[0], surfaceRgb[1], surfaceRgb[2])[0] : GREY_L[GREY_L.length - 1]
     const scale = greyScale(hue, textL, surfaceL)
     STEPS.forEach((step, index) => {
         if (scale[index]) declarations.push(`  --color-gray-${step}: ${scale[index]} !important;`)
