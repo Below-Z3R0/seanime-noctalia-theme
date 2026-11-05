@@ -51,13 +51,25 @@ The plugin's tray icon holds one field: the path to the palette file. It default
 ~/.local/state/noctalia/seanime/palette.css
 ```
 
-which is where the Noctalia template writes it. The path is stored per client, so a browser and
-the desktop app can point at different palettes.
+which is where the Noctalia template writes it. The value is kept in the plugin's storage on the
+server, because the file is read server-side: every client shares the same path.
 
 > **Permissions.** The manifest declares `readPaths` for the two default locations
 > (`$HOME/.local/state/noctalia/seanime/*` and `$HOME/.config/noctalia/seanime/*`). Pointing the
 > field somewhere else needs a manifest with that path added — the server refuses reads outside
 > the declared paths.
+>
+> The read happens **on the server**, so a containerised Seanime needs the Noctalia state
+> directory mounted inside it, mapped to the server user's home:
+>
+> ```yaml
+> volumes:
+>   - ${XDG_STATE_HOME:-$HOME/.local/state}/noctalia:/home/seanime/.local/state/noctalia:ro
+> ```
+>
+> No network access and no unsafe flags are requested: the plugin only injects a `<style>`
+> element (never a `<script>` or a `<link>`), which is why `dom-script-manipulation` and
+> `dom-link-manipulation` stay out of the manifest.
 
 ## The palette file
 
@@ -104,31 +116,59 @@ own `dark:` variants follow the palette instead of fighting it.
 
 ## How it stays up to date
 
-The plugin polls the palette file every two seconds and compares a hash of its contents, the same
-way Hermes watches its skin files: cheap, stateless, and it survives the client being closed and
-reopened. The stylesheet is updated in place — it is only created once — and the document's
-colour scheme is only touched when the mode actually changes.
+The plugin polls the palette file every two seconds and compares a hash of its contents: cheap,
+stateless, and it survives the client being closed and reopened. The read happens **on the
+server** — the manifest declares the paths it is allowed to touch — so the palette is the same for
+every client, which is what a desktop-wide theme should be.
 
-The file is read from the client first, so a browser on another machine uses the palette of the
-machine it runs on. When the client cannot reach its own filesystem, the plugin falls back to the
-server-side read; the tray reports which one is in use.
+When the contents change the plugin rebuilds the stylesheet, removes the previous element, creates
+a fresh one and reads the text back to confirm the write landed. Each client owns its own DOM, so
+the stylesheet is re-created when a client reconnects; a `data-noctalia="1"` marker lets the plugin
+find and remove leftovers from an earlier session instead of piling up duplicates.
+
+A presence probe runs every five seconds, which catches the case where a client reloaded but never
+fired the ready hooks (Seanime only sends them once per load).
+
+## Troubleshooting
+
+The plugin reports its state in the tray; the same text is stored under
+`noctaliaTheme.status`.
+
+| Status | Meaning |
+|---|---|
+| `Applied · <path>` | The palette was read and the stylesheet is in the client's DOM |
+| `Not found: <path>` | The file is not there, or the server is not allowed to read it |
+| `Waiting for the palette…` | No poll has finished yet (usually right after loading) |
+| `Apply failed: …` | The client did not accept the stylesheet; the message says why |
+| `No palette roles in the file` | The file exists but has no `--nt-*` properties |
+
+If it says `Not found` for a path that exists on your machine, the plugin is running somewhere
+else — a container, most likely. See the container note under *Permissions*.
 
 ## Development
 
 ```
 plugins/noctalia-theme/
-├── noctalia-theme.json   manifest: id, permissions, payload location
-├── code.ts               the plugin
-└── icon.png
+├── code.ts                  the plugin
+├── noctalia-theme.json      manifest: id, permissions, payload location
+├── icon.png
+├── tsconfig.json
+└── test/
+    └── simulate-runtime.ts  runs the plugin the way Seanime does
 ```
 
-The colour maths in `code.ts` is pure and side-effect free, so it can be exercised on its own:
+The plugin does not run in Node: Seanime evaluates it with Goja and runs the `$ui.register`
+callback in a **separate runtime**, so nothing declared outside that callback is visible inside
+it. That is why the whole implementation lives in one callback.
+
+This is exactly what the simulator reproduces, with two isolated `vm` contexts:
 
 ```bash
-node --experimental-strip-types -e "
-import { buildCss, parseTokens } from './code.ts'
-"
+bun test/simulate-runtime.ts          # compiles the source, calls init(), runs the callback
 ```
+
+It fails when a constant is declared outside the callback, when a global timer is used, or when
+the payload stops parsing — the three mistakes that cost the most time while building this.
 
 ## License
 
