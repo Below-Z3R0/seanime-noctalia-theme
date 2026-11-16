@@ -29,19 +29,26 @@ soon as the palette changes.
 
 ## Installation
 
-From the Seanime marketplace, once the extension is published:
+Seanime installs the plugin from its manifest URL:
 
-> Settings → Extensions → Marketplace → *Noctalia Theme* → Install
+1. Open **Settings → Extensions**.
+2. Click **Add extensions**.
+3. Paste this URL into **Install from URL**:
+
+   ```
+   https://raw.githubusercontent.com/Below-Z3R0/seanime-noctalia-theme/main/plugins/noctalia-theme/noctalia-theme.json
+   ```
+
+4. Click **Find**, then **Install**.
 
 Seanime asks for the file-system permission the plugin declares; granting it is what lets the
 plugin read the palette file.
 
-To install it manually while it is not in the marketplace yet, drop the manifest into the
-extensions folder of your Seanime data directory and restart the server:
-
-```
-<data-dir>/extensions/noctalia-theme.json
-```
+> **Do not copy the manifest into `<data-dir>/extensions` by hand.** The manifest points at its
+> code with `payloadURI`; Seanime downloads that URL during installation and stores the code
+> inside the installed manifest. A hand-copied manifest has no payload, so it loads without
+> running anything. Importing the repository does not work either — Seanime skips plugins in
+> repository imports.
 
 ## Configuration
 
@@ -152,7 +159,6 @@ plugins/noctalia-theme/
 ├── code.ts                  the plugin
 ├── noctalia-theme.json      manifest: id, permissions, payload location
 ├── icon.png
-├── tsconfig.json
 └── test/
     └── simulate-runtime.ts  runs the plugin the way Seanime does
 ```
@@ -164,11 +170,13 @@ it. That is why the whole implementation lives in one callback.
 This is exactly what the simulator reproduces, with two isolated `vm` contexts:
 
 ```bash
-bun test/simulate-runtime.ts          # compiles the source, calls init(), runs the callback
+bun plugins/noctalia-theme/test/simulate-runtime.ts plugins/noctalia-theme/code.ts
 ```
 
-It fails when a constant is declared outside the callback, when a global timer is used, or when
-the payload stops parsing — the three mistakes that cost the most time while building this.
+It fails when a constant is declared outside the callback, when the payload stops parsing, or
+when either ready hook does not register a working callback. The simulator invokes `onReady` and
+`onMainTabReady` and asserts that each one reads the palette again, so a missing `reapply`
+definition is a test failure instead of a line in the status log.
 
 ## License
 
